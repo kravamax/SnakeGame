@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;             // класс запускает метод Loop
 using System.Collections.Generic;   //обобщенные или типизированные классы коллекций (IEnumerable <T> name = new IEnumerable <T>() {};)
 using System.Linq;                  //пространство имен предоставляет классы и интерфейсы, которые поддерживают запросы                 
@@ -15,22 +16,31 @@ namespace SnakeGame
         static Snake snake;
         static FoodFactory foodFactory;                 // создает объект еды
         static Timer time;
+        static int scores = 0;
+        static int level = 0;
+        static int snakeSpeed = 150;
+        static string playerName;
+        static Stopwatch stopWatch = new Stopwatch();
         static void Main(string[] args)
         {
-
+            
             Console.SetWindowSize(x + 1, y + 1);        // устанавливает размер окна консоли
             Console.SetBufferSize(x + 1, y + 1);        // устанавливает размер буфера (убирает панель прокрутки)
             Console.CursorVisible = false;              // скрываем курсор
 
-            walls = new Walls(x, y, '.');
-            snake = new Snake(x / 2, y / 3, 3);         // создаем объект змейки в центре поля и в длину 3 элемента
+            AskName();                                  // функция регистрирует игрока
 
-            foodFactory = new FoodFactory(x, y, '@');   // инициализация объекта еды координатами и символом
+            walls = new Walls(x, y, '.');            
+
+            snake = new Snake(x / 2, y / 3, 3);         // создаем объект змейки в центре поля и в длину 3 элемента
+                        
+            stopWatch.Start();                          // включаем секундомер
+
+            foodFactory = new FoodFactory(x, y, 'o');   // инициализация объекта еды координатами и символом
             foodFactory.CreateFood();                   // добавляет еду для змейки
 
+            time = new Timer(Loop, null, 0, snakeSpeed);            
 
-            time = new Timer(Loop, null, 0, 150);
-                        
             while (true)
             {
                 if (Console.KeyAvailable)
@@ -39,20 +49,56 @@ namespace SnakeGame
                     snake.Rotation(key.Key);
                 }
             }
-
-
         }
         static void Loop(object obj)
         {
+            
             if (walls.IsHit(snake.GetHead()) || snake.IsHit(snake.GetHead()))
             {
                 time.Change(0, Timeout.Infinite);
+                GameOver();
             }
             else if (snake.Eat(foodFactory.food))
             {
                 foodFactory.CreateFood();
+                scores++;
+                if(scores % 3 == 0) 
+                {
+                    if (scores < 6) { time.Change(0, snakeSpeed -= 50); }               // увеличиваем скорость змеи, если съели до 6 яблок
+                    else if (snakeSpeed >= 0) { time.Change(0, snakeSpeed -= 10); }     // немного увеличиваем после 6 яблок
+                    level++;
+                }
             }
-            else { snake.Move(); }
+            else 
+            { 
+                snake.Move();
+                Console.SetCursorPosition(0, 28);
+                GameInfo();                                                             // вывод игрового табло с инфой
+            }                
+        }
+        static void AskName()
+        {
+            Console.Write("Enter your name: ");
+            playerName = Console.ReadLine();
+        }
+        static void GameOver()
+        {
+            stopWatch.Stop();
+            Console.Clear();
+            Console.SetCursorPosition(37, 18);
+            Console.WriteLine("GAME OVER, " + playerName);
+            Console.SetCursorPosition(13, 28);
+            Console.WriteLine("Your scores: " + scores);
+            Console.SetCursorPosition(43, 28);
+            Console.Write("\t\tTime: {0:hh\\:mm\\:ss\\.ff}", stopWatch.Elapsed);
+            Console.ReadKey();
+        }
+        static void GameInfo()
+        {
+            Console.Write("\n\n\n\tPlayer: " + playerName);
+            Console.Write("\t\t\t\t\tLevel: " + level);
+            Console.Write("\n\n\n\tScores: " + scores);
+            Console.Write("\t\t\t\t\tTime:  {0:hh\\:mm\\:ss\\.ff}", stopWatch.Elapsed);
         }
     }
     struct Point
@@ -135,13 +181,14 @@ namespace SnakeGame
         private Point tail;                                                     // переменная для хвоста типа Point 
         private Point head;                                                     // переменная для головы типа Point                        
         bool rotate = true;
+
         public Snake(int x, int y, int length)                                  // конструктор с прорисовкой змейки на старте
         {
             direction = Direction.RIGHT;
             snake = new List<Point>();
             for (int i = x - length; i < x; i++)
             {
-                Point p = (i, y, 'o');
+                Point p = (i, y, '.');
                 snake.Add(p);
                 p.Draw();
             }
@@ -166,7 +213,7 @@ namespace SnakeGame
             head = GetNextPoint();
             if (head == p)
             {
-                snake.Add(head);                
+                snake.Add(head);
                 head.Draw();
                 return true;
             }

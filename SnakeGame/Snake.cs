@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using static System.Console;
 using System.Diagnostics;
 using System.Threading;             // класс запускает метод Loop
@@ -7,7 +8,6 @@ using System.Linq;                  //пространство имен пред
 
 namespace SnakeGame
 {
-
     class Game
     {
         static readonly int x = 80;                     // длина игровой области по горизонтали
@@ -19,11 +19,11 @@ namespace SnakeGame
         static Timer time;
         static int scores = 0;
         static int level = 0;
-        static int snakeSpeed = 150;
+        static int diflevel;                            // уровни сложности
+        static int snakeSpeed = 150;                    // начальная скорость змеи
         static readonly Stopwatch stopWatch = new Stopwatch();
         static void Main()
-        {
-            
+        {            
             SetWindowSize(x + 1, y + 1);        // устанавливает размер окна консоли
             SetBufferSize(x + 1, y + 1);        // устанавливает размер буфера (убирает панель прокрутки)
             CursorVisible = false;              // скрываем курсор                                          
@@ -32,47 +32,68 @@ namespace SnakeGame
 
             GameMenu();
 
-            StartGame();
-            
+            StartGame();            
         }
         static void Loop(object obj)
-        {
-            
+        {            
             if (walls.IsHit(snake.GetHead()) || snake.IsHit(snake.GetHead()))
             {
                 time.Change(0, Timeout.Infinite);
                 GameOver();
+                GameOverMenu();
             }
             else if (snake.Eat(foodFactory.Food))
             {
-                foodFactory.CreateFood();
-                scores++;
-                if(scores % 3 == 0) 
+                foodFactory.CreateFood(diflevel);
+                if (diflevel == 0)                                                           // система начисления очков для легкого уровня
                 {
-                    if (scores < 6) { time.Change(0, snakeSpeed -= 50); }               // увеличиваем скорость змеи, если съели до 6 яблок
-                    else if (snakeSpeed >= 0) { time.Change(0, snakeSpeed -= 10); }     // немного увеличиваем после 6 яблок
-                    level++;
+                    scores++;
+                    if (scores % 3 == 0)
+                    {
+                        if (scores <= 6) { time.Change(0, snakeSpeed -= 40); }               // увеличиваем скорость змеи, если съели до 6 яблок
+                        else if (snakeSpeed >= 0) { time.Change(0, snakeSpeed -= 10); }      // немного увеличиваем после 6 яблок
+                        level++;
+                    }
+                }
+                else if (diflevel == 1)                                                           // система начисления очков для среднего уровня
+                {
+                    scores += 2;
+                    if (scores % 4 == 0)
+                    {
+                        if (scores <= 6) { time.Change(0, snakeSpeed -= 30); }               // увеличиваем скорость змеи, если съели до 6 яблок
+                        else if (snakeSpeed >= 0) { time.Change(0, snakeSpeed -= 10); }      // немного увеличиваем после 6 яблок
+                        level++;
+                    }
+                }
+                else if (diflevel == 2)                                                           // система начисления очков для тяжелого уровня
+                {
+                    scores += 4;
+                    if (scores % 8 == 0)
+                    {
+                        if (scores <= 12) { time.Change(0, snakeSpeed -= 20); }               // увеличиваем скорость змеи, если съели до 12 яблок
+                        else if (snakeSpeed >= 0) { time.Change(0, snakeSpeed -= 10); }       // еще ускоряемся после 12 яблок
+                        level++;
+                    }
                 }
             }
-            else 
-            { 
+            else
+            {
                 snake.Move();
                 SetCursorPosition(0, 28);
                 GameInfo();                                                             // вывод игрового табло с инфой
-            }                
+            }
         }
         static void GameMenu()
         {
-            int selectedMenuClass = ConsoleHelper.MultipleChoice(true, "start", "statistics","read rules", "exit");
+            int selectedMenuClass = ConsoleHelper.MultipleChoice(true, "start", "statistics", "read rules", "exit");
 
             switch (selectedMenuClass)
             {
-                case 0: { Clear(); DificultyLevel(); break; }
-                case 1: { GameMenu(); /*GameStatistics();*/ break; }
+                case 0: { Clear(); DificultyLevel(); /*StartGame();*/ break; }
+                case 1: { GameStatistics(); GameMenu(); break; }
                 case 2: { GameRules(); break; }
-                case 3: { GameOver(); time.Change(0, Timeout.Infinite); break; }
+                case 3: { GameOver(); break; }
             }
-            //Clear();
         }
         public static void GameRules()
         {
@@ -94,15 +115,42 @@ namespace SnakeGame
         }
         static void GameOver()
         {
-            stopWatch.Stop();
             Clear();
+            stopWatch.Stop();
+
+            string writePath = @"C:\Users\maksc\source\repos\SnakeGame\SnakeGame\Records.txt";
+
+            try
+            {
+                using (StreamWriter sw = new StreamWriter(writePath, true, System.Text.Encoding.Default))
+                {
+                    sw.WriteLine("Player\t\t" + scores + "\t{0:mm\\:ss\\.ff}", stopWatch.Elapsed);
+                }
+            }
+            catch (Exception e)
+            {
+                WriteLine(e.Message);
+            }
+
             SetCursorPosition(37, 18);
             WriteLine("GAME OVER, " + "Noname");
             SetCursorPosition(13, 28);
             WriteLine("Your scores: " + scores);
             SetCursorPosition(43, 28);
             Write("\t\tTime: {0:mm\\:ss\\.ff}", stopWatch.Elapsed);
+
+            WriteLine("\n\n\n\n\t\t\t\t\tPress Enter");
             ReadKey();
+        }
+        static void GameOverMenu()
+        {
+            int selectedMenuClass = ConsoleHelper.MultipleChoice(true, "game again", "exit");
+
+            switch (selectedMenuClass)
+            {
+                case 0: { GameMenu(); break; }
+                case 1: { break; }
+            }
         }
         static void GameInfo()
         {
@@ -138,38 +186,58 @@ namespace SnakeGame
         }
         public static void DificultyLevel()
         {
-            Clear();
-            WriteLine("Dificulty level: ");
+            //WriteLine("Dificulty level: ");
             int selectedDificultyClass = ConsoleHelper.MultipleChoice(true, "ease", "normal", "hard");
 
             switch (selectedDificultyClass)
             {
-                case 0: { Clear(); walls = new Walls(x, y, '.'); break; }
-                case 1: { Clear(); walls = new Walls(x, y, '.', 70, 5, 10, 21); break; }
-                case 2: { Clear(); walls = new Walls(x, y, '.', 70, 5, 10, 21, 60, 12); break; }
+                case 0: { Clear(); walls = new Walls(x, y, '.'); break; }                           // создание стен легкого уровня
+                case 1: { Clear(); walls = new Walls(x, y, '.', 70, 5, 10, 21); break; }            // создание стен среднего уровня
+                case 2: { Clear(); walls = new Walls(x, y, '.', 70, 5, 10, 21, 60, 12); break; }    // создание стен сложного уровня
             }
+            diflevel = selectedDificultyClass;
         }
         static void StartGame()
         {
-            snake = new Snake(x / 2, 3, 1);         // создаем объект змейки в центре поля и в длину 3 элемента
+            snake = new Snake(x / 2, 3, 2);         // создаем объект змейки в центре поля и в длину 3 элемента
 
             stopWatch.Start();                          // включаем секундомер
 
-            foodFactory = new FoodFactory(x, y, 'o');   // инициализация объекта еды координатами и символом
-            foodFactory.CreateFood();                   // добавляет еду для змейки
+            if (diflevel == 0) foodFactory = new FoodFactory(x, y, 'o');   // инициализация объекта еды координатами и символом
+            else if (diflevel == 1) foodFactory = new FoodFactory(x, y, 'o', 70, 5, 10, 21);
+            else if (diflevel == 2) foodFactory = new FoodFactory(x, y, 'o', 70, 5, 10, 21, 60, 12);
+
+            foodFactory.CreateFood(diflevel);                   // добавляет еду для змейки
 
             time = new Timer(Loop, null, 0, snakeSpeed);
 
             while (true)
             {
-                if (Console.KeyAvailable)
+                if (KeyAvailable)
                 {
-                    ConsoleKeyInfo key = Console.ReadKey(true);
+                    ConsoleKeyInfo key = ReadKey(true);
                     snake.Rotation(key.Key);
                 }
             }
         }
+        static void GameStatistics()
+        {
+            Clear();
 
+            string text = "\n\n\t\t\tТаблица рекордов игры Змейка\n\n\t\t\tPlayerName\tScores\tTime";
+            WriteLine(text);
+
+            string path = @"C:\Users\maksc\source\repos\SnakeGame\SnakeGame\Records.txt";
+            using (StreamReader sr = new StreamReader(path, System.Text.Encoding.Default))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    WriteLine("\n\t\t\t" + line);
+                }
+            }
+            ReadKey();
+        }
     }
     struct Point
     {
@@ -199,8 +267,8 @@ namespace SnakeGame
     }
     class Walls                                     // отрисовка стен
     {
-        private readonly char ch;
-        private readonly List<Point> wall = new List<Point>();
+        public char ch;
+        public List<Point> wall = new List<Point>();
 
         public Walls(int x, int y, char ch)         // конструктор принимает 3 параметра для отображения всех 4 стен заданным символом
         {
@@ -335,7 +403,7 @@ namespace SnakeGame
         public Point GetHead() => snake.Last();                  // голова принимает последний элемент последовательности
         public void Move()                                       // метод движения      
         {
-            Console.ForegroundColor = ConsoleColor.Green;        // раскрас тела змейки   
+            ForegroundColor = ConsoleColor.Green;        // раскрас тела змейки   
             head = GetNextPoint();                               // голова принимает значение следующей точки координат
             
             snake.Add(head);                                     // добавление символа головы
@@ -402,23 +470,47 @@ namespace SnakeGame
     }
     class FoodFactory                                   // генерация еды
     {
-        readonly int x, y;
+        readonly int x, y, x2, y2, x3, y3, x4, y4;
         readonly char ch;
         public Point Food { get; private set; }
 
         readonly Random random = new Random();
 
-        public FoodFactory(int x, int y, char ch)       // Использовать лямбада-функции?
+        public FoodFactory(int x, int y, char ch)
         {
             this.x = x;
             this.y = y;
             this.ch = ch;
         }
-
-        public void CreateFood()                                                // рисует еду в рандомных точках
+        public FoodFactory(int x, int y, char ch, int x2, int y2, int x3, int y3) : this(x, y, ch)                                                // нельзя ставить при среднем уровне (правильно??)
         {
-            Food = (random.Next(1, 79), random.Next(1, 25), ch);
-            Console.ForegroundColor = ConsoleColor.Red;                         // меняем цвет еды
+            this.x2 = x2;
+            this.y2 = y2;
+            this.x3 = x3;
+            this.y3 = y3;
+        }
+        public FoodFactory(int x, int y, char ch, int x2, int y2, int x3, int y3, int x4, int y4) : this(x, y, ch, x2, y2, x3, y3)              // нельзя ставить при сложном уровне (правильно??)
+        {
+            this.x4 = x4;
+            this.y4 = y4;
+        }
+
+        public void CreateFood(int DifLevel)                                                // рисует еду в рандомных точках
+        {
+            if (DifLevel == 0) { Food = (random.Next(1, 79), random.Next(1, 25), ch); }
+            if (DifLevel == 1)
+            {
+                Food = (random.Next(1, 79), random.Next(1, 25), ch);
+                //for (int i = 10; i < 70; i++)
+                //{                    
+                //    if (i > 20 && i < 60) { continue; }
+                //    else if(Food.x == i && Food.y == 5 || Food.x == i && Food.y == 21) { Food = (random.Next(1, 79), random.Next(1, 25), ch); }
+                //}
+
+            }
+            if (DifLevel == 2) { Food = (random.Next(1, 79), random.Next(1, 25), ch); }
+
+            ForegroundColor = ConsoleColor.Red;                         // меняем цвет еды
             Food.Draw();
         }
     }
@@ -430,10 +522,8 @@ namespace SnakeGame
 
             int currentSelection = 0;
 
-            ConsoleKey key;
+            ConsoleKey keymenu;
 
-            CursorVisible = false;
-           
             do
             {
                 Clear();
@@ -447,9 +537,9 @@ namespace SnakeGame
                     ResetColor();
                 }
 
-                key = ReadKey(true).Key;                
+                keymenu = ReadKey(true).Key;
 
-                switch (key)
+                switch (keymenu)
                 {
                     case ConsoleKey.UpArrow:
                         {
@@ -471,14 +561,9 @@ namespace SnakeGame
                             break;
                         }
                 }
-            } while (key != ConsoleKey.Enter);
-
-            CursorVisible = true;
+            } while (keymenu != ConsoleKey.Enter);
 
             return currentSelection;
         }
     }
-
-
-
 }
